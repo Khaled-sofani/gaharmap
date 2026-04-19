@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الخريطة الصحية — هيئة GAHAR</title>
+    <meta name="description" content="لوحة تحكم خريطة المنشآت الصحية للهيئة العامة للاعتماد والرقابة الصحية">
+
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ range(1,99999)|random }}">
+</head>
+<body>
+
+<div class="dashboard-wrapper">
+
+    <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+    <aside class="sidebar border-box">
+        <div class="logo-area">
+            <img src="{{ url_for('static', filename='gahar-logo.png') }}"
+                 alt="GAHAR Logo" class="logo"
+                 onerror="this.style.display='none'">
+            <span class="main-title-ar">الهيئة العامة للاعتماد والرقابة الصحية</span>
+        </div>
+
+        <div>
+            <div class="sidebar-subtitle">خريطة المنشآت الطبية</div>
+            <div class="sidebar-subtitle-small">إحصائيات الاعتماد لكل محافظة</div>
+        </div>
+
+        <!-- Filters -->
+        <select id="filter-gov" class="filter-select">
+            <option value="">جميع محافظات مصر</option>
+        </select>
+        <select id="filter-center" class="filter-select">
+            <option value="">المركز</option>
+        </select>
+        <select id="filter-shiakha" class="filter-select">
+            <option value="">الشياخة</option>
+        </select>
+        <select id="filter-entity" class="filter-select">
+            <option value="">الجهة التابعة</option>
+        </select>
+        <select id="filter-type" class="filter-select">
+            <option value="">نوع المنشأة</option>
+        </select>
+
+        <button id="clear-filters" class="btn-clear">
+            <i class="fa fa-filter-circle-xmark"></i> إلغاء التصفية
+        </button>
+
+        <button id="filter-accredited" class="btn-accredited">
+            <i class="fa fa-certificate"></i> عرض المعتمد فقط
+        </button>
+
+        <button id="gov-analysis-btn" class="btn-report-trigger">
+            <i class="fa fa-chart-line"></i> تحليل المحافظة
+        </button>
+
+        <button id="tips-stats-btn" class="btn-report-trigger" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); margin-top: -2px;">
+            <i class="fa fa-lightbulb"></i> نصائح وإحصائيات
+        </button>
+
+        <!-- Gov / facility details -->
+        <div class="facility-details-box" id="sidebar-details-container">
+            <h3 style="color:var(--border-gold);font-size:15px;margin-bottom:12px;text-align:center;">بيانات محافظة المنيا</h3>
+            <div class="detail-row">
+                <span class="detail-label">عدد السكان</span>
+                <span class="detail-value">6.2 مليون نسمة (تقديرات)</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">نسبة الفقر</span>
+                <span class="detail-value">54.7%</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">الحدود الجغرافية</span>
+                <span class="detail-value" style="white-space:normal;line-height:1.6;">
+                    شمالاً: بني سويف | جنوباً: أسيوط | شرقاً: البحر الأحمر | غرباً: الجيزة والوادي الجديد
+                </span>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">جميع الحقوق محفوظة للهيئة العامة للاعتماد والرقابة الصحية © 2026</div>
+    </aside>
+
+    <!-- ═══════════════════ MAIN CONTENT ═══════════════════ -->
+    <main class="main-content">
+
+        <!-- Map -->
+        <div class="map-widget border-box">
+            <div id="map"></div>
+            <div class="map-charts-overlay">
+                <div class="chart-widget overlay-chart border-box">
+                    <div class="widget-header">
+                        <h5 class="widget-title mini-title"><i class="fa fa-user-md"></i> المهن الطبية</h5>
+                    </div>
+                    <div class="chart-container mini-chart">
+                        <canvas id="professions-chart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-widget overlay-chart border-box">
+                    <div class="widget-header">
+                        <h5 class="widget-title mini-title"><i class="fa fa-bed"></i> إجمالي الأسرة</h5>
+                    </div>
+                    <div class="chart-container mini-chart">
+                        <canvas id="beds-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI Row -->
+        <div class="kpi-row">
+            <div class="kpi-card border-box">
+                <div class="kpi-chart-mini"><canvas id="top-donut-chart" width="45" height="45"></canvas></div>
+                <div class="kpi-info text-right">
+                    <span>إجمالي المنشآت</span>
+                    <h3 id="kpi-total-facilities">0</h3>
+                    <span style="color:#10b981;" id="kpi-accredited-count">المعتمدة: 0</span>
+                </div>
+                <div class="kpi-icon"><i class="fa fa-building"></i></div>
+            </div>
+            <div class="kpi-card border-box" id="kpis-staff-card" style="cursor:pointer;">
+                <div class="kpi-info text-right">
+                    <span>إجمالي المهن الطبية</span>
+                    <h3 id="kpi-total-doctors">0</h3>
+                </div>
+                <div class="kpi-icon"><i class="fa fa-user-md"></i></div>
+            </div>
+            <div class="kpi-card border-box" id="kpis-beds-card" style="cursor:pointer;">
+                <div class="kpi-info text-right">
+                    <span>إجمالي عدد الأسرة</span>
+                    <h3 id="kpi-total-beds">0</h3>
+                </div>
+                <div class="kpi-icon"><i class="fa fa-bed"></i></div>
+            </div>
+            <div class="kpi-card border-box">
+                <div class="kpi-info text-right">
+                    <span>عدد التمريض</span>
+                    <h3 id="kpi-total-nurses">0</h3>
+                </div>
+                <div class="kpi-icon"><i class="fa fa-syringe"></i></div>
+            </div>
+        </div>
+
+        <!-- Bottom Row -->
+        <div class="bottom-row">
+            <!-- Accreditation Chart -->
+            <div class="chart-widget border-box">
+                <div class="widget-header">
+                    <h3 class="widget-title"><i class="fa fa-chart-bar"></i> بيان الاعتماد</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="accreditation-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Facilities Table -->
+            <div class="table-widget border-box">
+                <div class="widget-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <h3 class="widget-title" style="margin:0;"><i class="fa fa-list"></i> قائمة المنشآت</h3>
+                    <div class="table-search-wrapper" style="display:flex; gap:10px; align-items:center;">
+                        <input type="text" placeholder="بحث..." id="table-search" style="padding:6px 12px; border:1px solid #e5e7eb; border-radius:6px;">
+                        <button id="btn-export-excel" style="background:#10b981; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-family:'Cairo'; font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                            <i class="fa fa-file-excel"></i> تصدير إكسيل
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="facilities-table">
+                        <thead>
+                            <tr>
+                                <th>اسم المنشأة</th>
+                                <th>المحافظة</th>
+                                <th>المركز</th>
+                                <th>الجهة التابعة</th>
+                                <th>نوع المنشأة</th>
+                                <th>الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- ═══════════════════ TIPS AND STATS MODAL ═══════════════════ -->
+<div id="tips-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box border-box" style="width:800px; max-width:90%;">
+        <div class="modal-header">
+            <div class="report-header-left">
+                <h2>نصائح وإحصائيات استخدام المنصة</h2>
+                <span class="report-subtitle">مؤشرات ذكية وتلميحات هامة لتحقيق أقصى استفادة من بيانات GAHAR</span>
+            </div>
+            <button class="close-modal" id="close-tips-modal" style="font-size:24px;">×</button>
+        </div>
+        <div class="modal-body" id="dynamic-insights-container">
+            <!-- Populated dynamically via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════ STAFF DETAILS MODAL ═══════════════════ -->
+<div id="staff-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box border-box" style="width:700px; max-width:90%;">
+        <div class="modal-header">
+            <div class="report-header-left">
+                <h2>تفاصيل المهن الطبية</h2>
+                <span class="report-subtitle">إجمالي العاملين والكوادر الطبية بناءً على الفلترة الحالية</span>
+            </div>
+            <button class="close-modal" id="close-staff-modal" style="font-size:24px;">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="beds-details-grid" id="staff-details-container">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════ BEDS DETAILS MODAL ═══════════════════ -->
+<div id="beds-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box border-box" style="width:700px; max-width:90%;">
+        <div class="modal-header">
+            <div class="report-header-left">
+                <h2>تفاصيل توزيع الأسرة</h2>
+                <span class="report-subtitle">إجمالي عدد الأسرة على مستوى الفلترة الحالية</span>
+            </div>
+            <button class="close-modal" id="close-beds-modal" style="font-size:24px;">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="beds-details-grid" id="beds-details-container">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════ FACILITY MODAL ═══════════════════ -->
+<div id="facility-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box border-box">
+        <div class="modal-header">
+            <h2 id="modal-facility-name">اسم المنشأة</h2>
+            <button class="close-modal"><i class="fa fa-times"></i></button>
+        </div>
+        <div class="modal-tabs">
+            <button class="tab-btn active" data-tab="tab-basic">البيانات الأساسية</button>
+            <button class="tab-btn" data-tab="tab-staff">المهن الطبية</button>
+            <button class="tab-btn" data-tab="tab-equip">التجهيزات</button>
+            <button class="tab-btn" data-tab="tab-accred">بيانات الاعتماد</button>
+        </div>
+        <div class="modal-body">
+            <div id="tab-basic"  class="tab-content active"></div>
+            <div id="tab-staff"  class="tab-content"></div>
+            <div id="tab-equip"  class="tab-content"></div>
+            <div id="tab-accred" class="tab-content"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════ GOVERNORATE REPORT MODAL ═══════════════════ -->
+<div id="gov-report-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box report-box border-box">
+        <div class="modal-header">
+            <div class="report-header-left">
+                <h2 id="report-gov-name">تحليل بيانات المحافظة</h2>
+                <span class="report-subtitle">نظرة شاملة على الموارد والخدمات الصحية</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn-print" onclick="printGovReport()">
+                    <i class="fa fa-print"></i> طباعة
+                </button>
+                <button class="close-modal" onclick="closeGovReport()">×</button>
+            </div>
+        </div>
+
+        <div class="modal-body report-body">
+            <div class="report-kpi-grid">
+                <div class="report-kpi-card"><span class="r-label">إجمالي المنشآت</span><h4 id="r-total-facs">0</h4></div>
+                <div class="report-kpi-card"><span class="r-label">نسبة الاعتماد</span><h4 id="r-acc-percent">0%</h4></div>
+                <div class="report-kpi-card"><span class="r-label">عدد المهن الطبية</span><h4 id="r-total-staff">0</h4></div>
+                <div class="report-kpi-card"><span class="r-label">إجمالي الأسرة</span><h4 id="r-total-beds">0</h4></div>
+            </div>
+            <div class="report-kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+                <div class="report-kpi-card" style="border-color:#3b82f633;">
+                    <span class="r-label"><i class="fa fa-users"></i> عدد السكان</span>
+                    <p id="r-gov-pop" style="font-size:14px;margin-top:5px;">-</p>
+                </div>
+                <div class="report-kpi-card" style="border-color:#ef444433;">
+                    <span class="r-label"><i class="fa fa-chart-line"></i> نسبة الفقر</span>
+                    <p id="r-gov-poverty" style="font-size:14px;margin-top:5px;">-</p>
+                </div>
+                <div class="report-kpi-card" style="border-color:#f59e0b33;">
+                    <span class="r-label"><i class="fa fa-map"></i> الحدود الجغرافية</span>
+                    <p id="r-gov-borders" style="font-size:10px;margin-top:5px;line-height:1.4;">-</p>
+                </div>
+            </div>
+            <div class="report-charts-grid">
+                <div class="report-chart-item border-box">
+                    <div class="widget-header">
+                        <span class="widget-title"><i class="fa fa-map-marker"></i> توزيع المنشآت حسب المراكز</span>
+                    </div>
+                    <div class="chart-container" style="height:350px;">
+                        <canvas id="report-center-chart"></canvas>
+                    </div>
+                </div>
+                <div class="report-chart-item border-box">
+                    <div class="widget-header">
+                        <span class="widget-title"><i class="fa fa-sitemap"></i> توزيع المنشآت حسب الجهة التابعة</span>
+                    </div>
+                    <div class="chart-container" style="height:350px;">
+                        <canvas id="report-type-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="report-analysis-section border-box">
+                <div class="widget-header">
+                    <span class="widget-title"><i class="fa fa-chart-line"></i> مؤشرات الأداء</span>
+                </div>
+                <div class="analysis-indicators-grid" id="report-indicators-container"></div>
+            </div>
+
+            <!-- التبعية بالأرقام -->
+            <div class="report-analysis-section border-box" style="margin-top:12px;">
+                <div class="widget-header" style="flex-direction:column;align-items:center;gap:8px;padding-bottom:4px;">
+                    <span class="widget-title"><i class="fa fa-hospital"></i> تنوع نوع المنشآت</span>
+                    <span id="report-entity-total" style="background:rgba(14,165,233,0.18);color:#0ea5e9;border:1px solid #0ea5e9;border-radius:24px;padding:5px 24px;font-size:18px;font-weight:800;letter-spacing:1px;"></span>
+                </div>
+                <div id="report-entity-container" class="entity-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/map_app.js') }}?v={{ range(1,99999)|random }}"></script>
+
+</body>
+</html>
